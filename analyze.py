@@ -72,6 +72,8 @@ class Week:
     self.sleep = list()
     
   def find_sleep(self):
+    if not self.datapoints:
+      return self.sleep
     while(self.remove_artifacts() > 0):
       print "Removal not done.."
     current_window = deque()
@@ -86,18 +88,22 @@ class Week:
           return_days.append(ele)
     if len(return_days) < 1:
       return []
-    return_days.sort()
+    return_days.sort(key=lambda k: k.time)
     return_real = [return_days[0]]
     for ele in return_days:
-      if (ele.time + timedelta(hours=12)).day == (return_real[-1].time + timedelta(hours=12)).day:
+      if (ele.time - timedelta(hours=12)).day == (return_real[-1].time - timedelta(hours=12)).day:
+        print "Comparing: " + str(return_real[-1].time) + " to " + str(ele.time)
         return_real[-1] = max(return_real[-1], ele, key=lambda k: k.interval)
       elif(ele.time + timedelta(hours=12)).weekday() == (return_real[0].time + timedelta(hours=12)).weekday():
+        print "Removing item: " + str(ele)
+        print "Keeping item: " + str(return_real[0])
         continue
       else:
         return_real.append(ele)
     #while(len(return_real) > 7):
     #  return_real.pop()
     self.sleep = return_real
+    self.datapoints = []
     return return_real
    
 
@@ -155,9 +161,10 @@ class Week:
         time_set = [4,5]
       if((d.time - timedelta(hours=12)).weekday() not in time_set):
         continue
-      time = TimeHelper.sec_time_of_day(d.time)
-      if time < (12*3600):
-        time += 12*3600
+      start_day = d.time - timedelta(hours=12)
+      start_day = start_day.replace(microsecond=0,second=0,minute=0,hour=0)
+      time_since_start = (d.time - start_day).total_seconds()
+      time = time_since_start
       waketime = time + d.interval.total_seconds()
       sleeptimes.append(d.interval.total_seconds())
       waketimes.append(waketime)
@@ -166,9 +173,9 @@ class Week:
     if(len(waketimes) < 1 or len(sleeptimes) < 1 or len(midtimes) < 1 or len(bedtimes) < 1):
       return ("","","","")
     mean_bed = TimeHelper.hours_toff(timedelta(seconds=(sum(bedtimes) / len(bedtimes))))
-    mean_wake = TimeHelper.remove_days(timedelta(seconds=(sum(waketimes) / len(waketimes))))
-    mean_mid = TimeHelper.remove_days(timedelta(seconds=(sum(midtimes) / len(midtimes))))
-    mean_sleep = TimeHelper.remove_days(timedelta(seconds=(sum(sleeptimes) / len(sleeptimes))))
+    mean_wake = TimeHelper.hours_toff(timedelta(seconds=(sum(waketimes) / len(waketimes))))
+    mean_mid = TimeHelper.hours_toff(timedelta(seconds=(sum(midtimes) / len(midtimes))))
+    mean_sleep = TimeHelper.hours_toff(timedelta(seconds=(sum(sleeptimes) / len(sleeptimes))))
     
     return (mean_bed, mean_wake, mean_mid, mean_sleep)
     
@@ -181,8 +188,8 @@ class Study:
     print last_part
     middle = last_part.split(".")[2]
     trimmed = middle.split("_")[0]
-    id = trimmed.split("uke")[0]
-    uke = trimmed.split("uke")[1]
+    id = trimmed[:4]
+    uke = "1"
     if(not id in self.patients):
       self.patients[id] = Patient(id)
     if(not uke in self.patients[id].weeks):
@@ -195,6 +202,7 @@ class Study:
         if(line[3] != "1"):
           dp = DataPoint(line)
           self.patients[id].weeks[uke].datapoints.append(dp)
+    self.patients[id].weeks[uke].find_sleep()
         
   def print_summary(self):
     for patient in self.patients.values():
@@ -203,9 +211,10 @@ class Study:
         print "Week: " + week.num
         print "Datapoints: " + str(len(week.datapoints))
         for e in week.find_sleep():
-          print e
+#          print e
+          pass
           
-  def print_time(self, file):
+  def print_time(self, file, pretty_print=False):
     f = open(file, 'w')
     fl = "Pasient id,Uke,"
     weekdays = ["Man", "Tir", "Ons", "Tors", "Fre", "Lor", "Son"]
@@ -216,20 +225,20 @@ class Study:
     for d in range(3):    
       fl += totals[d] + " mean lights off, " + totals[d] + " mean mid-sleep, " + totals[d] +" mean lights on, "+ totals[d] +" mean time in bed,"
     #f.write("Pasient-ID,Uke,Man lights off, Tir light on,Time in bed,Mid sleep,Tir lights off,onon,tib,onoff,toon,tib,tooff,fron,tib,froff,loon,tib,looff,soon,tib,sooff,maon,tib,mean_loff,mean_mid,mean_lon,mean_sleep\n")
-    f.write(fl[0:-2] + "\n")
+    f.write(fl[0:-1] + "\n")
     for patient in sorted(self.patients.values(),key=lambda k: int(k.id)):
       output = patient.id + ","
       for week in patient.weeks.values():
         output += week.num + ","
-        dp = defaultdict(lambda: ",,,")
-        for datapoint in week.find_sleep():
+        dp = defaultdict(lambda: ",,,,")
+        for datapoint in week.sleep:
           real_weekday = (datapoint.time-timedelta(hours=12)).weekday()
           start_day = datapoint.time-timedelta(hours=12)
           start_day = start_day.replace(microsecond=0, second=0, minute=0, hour=0)
           lights_off = TimeHelper.hours_toff(datapoint.time - start_day)
-          lights_on = datapoint.time_stop.strftime("%H:%M:%S")
-          time_in_bed = (datetime(2000,1,1) + datapoint.interval).strftime("%H:%M:%S")
-          mid_sleep = (datapoint.time + (datapoint.interval // 2)).strftime("%H:%M:%S")
+          lights_on = TimeHelper.hours_toff(datapoint.time_stop - start_day)
+          time_in_bed = TimeHelper.hours_toff(datapoint.interval)
+          mid_sleep = TimeHelper.hours_toff((datapoint.time - start_day) + (datapoint.interval // 2))
           dp[real_weekday] = ""
           dp[real_weekday] += str(lights_off) + ","
           dp[real_weekday] += str(lights_on) + ","
@@ -241,10 +250,20 @@ class Study:
           (mean_bed, mean_wake, mean_mid, mean_sleep) = week.get_total_means(i)
           output += str(mean_bed) + "," + str(mean_mid) + "," + str(mean_wake) + "," + str(mean_sleep) + ","
       f.write(output[0:-1] + "\n")
+      if(pretty_print):
+        self.pretty_print(fl[:-1],output[:-1])
     
+  def pretty_print(self, header, string):
+    data = string.split(",")
+    head = header.split(",")
+    
+    for i in range(len(head)):
+      print "{:<30}".format(head[i]) + ": " + data[i]
+  
 if __name__ == "__main__":
   parser = argparse.ArgumentParser()
   parser.add_argument("-f", "--files", dest="files", help="Data files to parse")
+  parser.add_argument("-p", action="store_const", const=True, dest="pretty", default=False)
   
   args = parser.parse_args()
   
@@ -253,8 +272,8 @@ if __name__ == "__main__":
   files = [f for f in listdir(args.files) if isfile(join(args.files,f))]
   
   for f in files:
-    if(f.endswith(".csv")):
+    if(f.endswith(".csv") or f.endswith(".xls")):
       study.add_file(f,args.files)
   
   study.print_summary()
-  study.print_time("output.csv")
+  study.print_time("output.csv", args.pretty)
