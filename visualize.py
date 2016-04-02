@@ -1,5 +1,6 @@
 from bokeh.charts import BoxPlot,output_file,Bar
 from bokeh.plotting import show
+from bokeh.models.formatters import NumeralTickFormatter
 import argparse
 from datetime import datetime
 
@@ -26,7 +27,7 @@ class Plotter:
             if len(times) < 3:
               continue
             try:
-              entry[self.headers[i]] = float(int(times[0]) * 3600 + int(times[1]) * 60 + int(times[2]))
+              entry[self.headers[i]] = (int(times[0]) * 3600 + int(times[1]) * 60 + int(times[2])) - 24*3600
             except ValueError:
               print times
         self.data.append(entry)
@@ -40,14 +41,27 @@ class Plotter:
     f.close()
           
   def plot(self):
+    num = -7
+    num2 = -3
+    app = list()
     for item in self.data:
       if(int(item[self.headers[0]]) < 2000):
-        item[self.headers[0]] = "Sick"
+        item[self.headers[0]] = "Sick - Weekday"
+        if self.headers[num2] in item.keys():
+          app.append(item.copy())
+          app[-1][self.headers[num]] = app[-1][self.headers[num2]]
+          app[-1][self.headers[0]] = "Sick - Weekend"
       else:
         item[self.headers[0]] = "Healthy"
+        if self.headers[num2] in item.keys():
+          app.append(item.copy())
+          app[-1][self.headers[num]] = app[-1][self.headers[num2]]
+          app[-1][self.headers[0]] = "Healthy - Weekend"
   
+    self.data.extend(app)
     output_file(self.ofile)
-    pl = BoxPlot(self.data, values=self.headers[-11],label=self.headers[0])
+    pl = BoxPlot(self.data, values=self.headers[num],label=self.headers[0])
+    pl.left[0].formatter = NumeralTickFormatter(format="00:00:00")
     show(pl)
 
 if __name__ == "__main__":

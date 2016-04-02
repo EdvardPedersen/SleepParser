@@ -76,7 +76,6 @@ class Week:
       return self.sleep
     while(self.remove_artifacts() > 0):
       print "Removal not done.."
-    current_window = deque()
     current_day = None
     current_start = self.datapoints[0].time
     current_end = self.datapoints[0].time_stop
@@ -110,10 +109,24 @@ class Week:
   def remove_artifacts(self):
     removals = list()
     additions = list()
+    
+    if(self.datapoints[0].activity == 0):
+      print "Popping data point at start: " + str(self.datapoints[0])
+      self.datapoints.pop(0)
+      
+    if(self.datapoints[-1].activity == 0):
+      print "Popping data point at end: " + str(self.datapoints[-1])
+      self.datapoints.pop()
+      
+    first_time = self.datapoints[0].time
+    
     for i in range(len(self.datapoints)):
       dp = self.datapoints[i]
       if dp.activity != 0:
         continue
+      
+      if dp.time - first_time > timedelta(days=7):
+        break
       start_time = dp.time_stop
       elapsed_time = timedelta(seconds=0)
       a = 1
