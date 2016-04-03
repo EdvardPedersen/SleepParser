@@ -8,7 +8,7 @@ from collections import deque,defaultdict
 
 class Rules:
   shortest_time = timedelta(hours=3)
-  artifact_time = timedelta(seconds=3)
+  artifact_time = timedelta(seconds=10)
   longest_time = timedelta(hours=24)
   start_time = datetime(1899,12,30)
 
@@ -90,12 +90,18 @@ class Week:
     return_days.sort(key=lambda k: k.time)
     return_real = [return_days[0]]
     for ele in return_days:
+      if(((ele.time_stop - ele.interval // 2) - current_start) > timedelta(days=7)):
+        print "Removing element: " + str(ele)
+        break
       if (ele.time - timedelta(hours=12)).day == (return_real[-1].time - timedelta(hours=12)).day:
         print "Comparing: " + str(return_real[-1].time) + " to " + str(ele.time)
+        print "Time since start: " + str(ele.time - current_start)
+        print "Weekday: " + str((ele.time - timedelta(hours=12)).weekday())
         return_real[-1] = max(return_real[-1], ele, key=lambda k: k.interval)
       elif(ele.time + timedelta(hours=12)).weekday() == (return_real[0].time + timedelta(hours=12)).weekday():
         print "Removing item: " + str(ele)
         print "Keeping item: " + str(return_real[0])
+        return_real[0] = ele
         continue
       else:
         return_real.append(ele)
@@ -124,9 +130,6 @@ class Week:
       dp = self.datapoints[i]
       if dp.activity != 0:
         continue
-      
-      if dp.time - first_time > timedelta(days=7):
-        break
       start_time = dp.time_stop
       elapsed_time = timedelta(seconds=0)
       a = 1
